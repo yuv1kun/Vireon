@@ -227,7 +227,7 @@ vireon/
       <strong>npm or yarn</strong>
     </td>
     <td align="center" width="33%">
-      <img src="https://img.icons8.com/external-filled-outline-lima-studio/64/external-llm-artificial-intelligence-filled-outline-lima-studio.png" width="32" alt="Ollama"/><br>
+      <img src="[https://img.icons8.com/external-filled-outline-lima-studio/64/external-llm-artificial-intelligence-filled-outline-lima-studio.png](https://miro.medium.com/v2/resize:fit:948/0*fP8ryjrDov_KhXO4)" width="32" alt="Ollama"/><br>
       <strong>Ollama</strong> (optional)
     </td>
   </tr>

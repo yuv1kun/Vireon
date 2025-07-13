@@ -23,8 +23,8 @@ class IOCExtractor {
     // IPv6 addresses (simplified)
     ipv6: /\b(?:[a-fA-F0-9]{1,4}:){7}[a-fA-F0-9]{1,4}\b|\b(?:[a-fA-F0-9]{1,4}:){1,7}:|\b(?:[a-fA-F0-9]{1,4}:){1,6}:[a-fA-F0-9]{1,4}\b/g,
     
-    // URLs and domains
-    url: /https?:\/\/(?:[-\w.])+(?:\:[0-9]+)?(?:\/(?:[\w\/_.])*(?:\?(?:[\w&=%.])*)?(?:\#(?:[\w.])*)?)?/g,
+    // URLs and domains - enhanced pattern for better detection
+    url: /https?:\/\/(?:[-\w.%]+)+(?:\:[0-9]+)?(?:\/(?:[\w\/_\-.%])*(?:\?(?:[\w&=%\-.])*)?(?:\#(?:[\w\-.])*)?)?/g,
     
     // Domain names
     domain: /\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\b/g,
@@ -38,11 +38,23 @@ class IOCExtractor {
     // Email addresses
     email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
     
-    // CVE identifiers
-    cve: /CVE-\d{4}-\d{4,7}/gi,
+    // CVE identifiers - enhanced to capture various formats
+    cve: /(?:CVE|cve|vulnerability)[-:\s]*(\d{4})[-:\s]*(\d{4,7})/gi,
     
     // Bitcoin addresses
-    bitcoin: /\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b/g
+    bitcoin: /\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b/g,
+    
+    // GitHub Security Advisory IDs
+    ghsa: /\bGHSA-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}\b/gi,
+    
+    // Common registry keys used in malware
+    registry: /\b(HKEY_LOCAL_MACHINE|HKLM|HKEY_CURRENT_USER|HKCU)\\[\\\w*]+\b/g,
+    
+    // File paths often associated with malware
+    filepath: /\b(?:[A-Za-z]:\\(?:[\w\s.-]+\\)*[\w\s.-]+(?:\.[a-zA-Z0-9]+)?|(?:\/[\w\s.-]+)+(?:\.[a-zA-Z0-9]+)?)\b/g,
+    
+    // MITRE ATT&CK technique IDs
+    mitre: /\bT\d{4}(?:\.\d{3})?\b/g
   };
 
   // Common false positive patterns to exclude
@@ -66,7 +78,12 @@ class IOCExtractor {
     ]
   };
 
-  extractIOCs(text: string): IOCExtractionResult {
+  /**
+   * Extract IOCs from the provided text
+   * @param text The text to extract IOCs from
+   * @param sourceType Optional source type to help with specialized extraction
+   */
+  extractIOCs(text: string, sourceType?: string): IOCExtractionResult {
     const iocs: ExtractedIOC[] = [];
     const summary = { totalFound: 0, byType: {} as Record<string, number> };
 
@@ -91,6 +108,15 @@ class IOCExtractor {
     
     // Extract email addresses
     this.extractPattern(text, this.patterns.email, 'email', iocs);
+    
+    // Extract CVE identifiers directly using the extractPattern method
+    this.extractPattern(text, this.patterns.cve, 'hash', iocs);
+    
+    // Extract GitHub Advisory IDs
+    this.extractPattern(text, this.patterns.ghsa, 'hash', iocs);
+    
+    // Extract MITRE ATT&CK techniques
+    this.extractPattern(text, this.patterns.mitre, 'hash', iocs);
 
     // Remove duplicates and apply filters
     const filteredIOCs = this.filterAndDedupeIOCs(iocs);
@@ -185,6 +211,9 @@ class IOCExtractor {
            suspiciousKeywords.some(keyword => urlLower.includes(keyword));
   }
 
+  /**
+   * Filter out false positives and deduplicate IOCs
+   */
   private filterAndDedupeIOCs(iocs: ExtractedIOC[]): ExtractedIOC[] {
     // Remove duplicates based on type and value
     const seen = new Set<string>();

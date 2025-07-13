@@ -297,7 +297,7 @@ export function Navigation({ activeTab, onTabChange }: NavigationProps) {
                   <ExternalLink className="h-3 w-3" />
                 </Button>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Built with React & AI
+                  Built with passion ⚡️
                 </p>
               </div>
             </div>

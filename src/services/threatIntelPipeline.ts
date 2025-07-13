@@ -20,6 +20,9 @@ export interface ThreatIntelligenceStats {
   lastRefresh: string;
   processingQueue: number;
   aiSummariesGenerated: number;
+  reportsBySource?: Record<string, number>;
+  apiSourceReports?: number;
+  rssFeedReports?: number;
 }
 
 class ThreatIntelligencePipeline {
@@ -81,6 +84,7 @@ class ThreatIntelligencePipeline {
     forceFeedRefresh?: boolean;
     reprocessExisting?: boolean;
     maxItems?: number;
+    sourcesFilter?: string[];
   }): Promise<{ success: boolean; processed: number; errors: string[] }> {
     
     if (this.isProcessing) {
@@ -106,7 +110,14 @@ class ThreatIntelligencePipeline {
         progress: 1
       });
 
-      const feedItems = await feedParser.fetchAllFeeds();
+      // Apply source filtering if provided
+      let feedItems: FeedItem[] = [];
+      if (options?.sourcesFilter && options.sourcesFilter.length > 0) {
+        console.log(`Filtering feeds by sources: ${options.sourcesFilter.join(', ')}`);
+        feedItems = await feedParser.fetchFeedsFromSources(options.sourcesFilter);
+      } else {
+        feedItems = await feedParser.fetchAllFeeds();
+      }
       console.log(`Fetched ${feedItems.length} feed items`);
 
       // Step 2: Convert feed items to threat reports
@@ -129,7 +140,8 @@ class ThreatIntelligencePipeline {
       for (const report of newReports) {
         try {
           const extractionResult = iocExtractor.extractIOCs(
-            `${report.title} ${report.description} ${report.content}`
+            `${report.title} ${report.description} ${report.content}`,
+            report.source // Pass the source type to help with specialized extraction
           );
           
           // Update report with extracted IOCs
@@ -222,6 +234,10 @@ class ThreatIntelligencePipeline {
     }
   }
 
+  /**
+   * Process feed items into threat reports
+   * This handles all source types including API-based sources
+   */
   private async processFeedItems(feedItems: FeedItem[], maxItems: number): Promise<ThreatReport[]> {
     const reports: ThreatReport[] = [];
     const itemsToProcess = feedItems.slice(0, maxItems);
@@ -287,21 +303,30 @@ class ThreatIntelligencePipeline {
     return organized;
   }
 
+  /**
+   * Generate tags based on content keywords
+   * Enhanced to include new source types like GHSA and NIST NVD
+   */
   private generateTags(title: string, description: string): string[] {
     const text = `${title} ${description}`.toLowerCase();
     const tags: string[] = [];
 
     const tagKeywords = {
-      'APT': ['apt', 'advanced persistent', 'nation-state'],
-      'Ransomware': ['ransomware', 'encryption', 'ransom'],
-      'Malware': ['malware', 'trojan', 'virus', 'backdoor'],
-      'Phishing': ['phishing', 'credential', 'social engineering'],
-      'Vulnerability': ['vulnerability', 'cve', 'exploit', 'patch'],
-      'Supply Chain': ['supply chain', 'third-party', 'dependency'],
-      'Healthcare': ['healthcare', 'hospital', 'medical'],
-      'Financial': ['financial', 'bank', 'payment'],
-      'Government': ['government', 'federal', 'agency'],
-      'Critical Infrastructure': ['infrastructure', 'critical', 'energy']
+      'APT': ['apt', 'advanced persistent', 'nation-state', 'threat actor', 'campaign'],
+      'Ransomware': ['ransomware', 'encryption', 'ransom', 'payment', 'decrypt', 'locked'],
+      'Malware': ['malware', 'trojan', 'virus', 'backdoor', 'payload', 'dropper', 'rootkit'],
+      'Phishing': ['phishing', 'credential', 'social engineering', 'spear', 'email', 'spoofing'],
+      'Vulnerability': ['vulnerability', 'cve', 'exploit', 'patch', 'zero-day', 'disclosure'],
+      'Supply Chain': ['supply chain', 'third-party', 'dependency', 'vendor', 'upstream'],
+      'Healthcare': ['healthcare', 'hospital', 'medical', 'patient', 'hipaa'],
+      'Financial': ['financial', 'bank', 'payment', 'atm', 'swift', 'transaction'],
+      'Government': ['government', 'federal', 'agency', 'military', 'classified'],
+      'Critical Infrastructure': ['infrastructure', 'critical', 'energy', 'grid', 'scada', 'ics'],
+      'GHSA': ['github', 'advisory', 'ghsa', 'package', 'dependency', 'npm', 'pip'],
+      'Cloud': ['aws', 'azure', 'gcp', 'cloud', 's3', 'bucket', 'container'],
+      'Cryptojacking': ['crypto', 'mining', 'monero', 'bitcoin', 'blockchain', 'wallet'],
+      'IoT': ['iot', 'device', 'router', 'camera', 'smart home', 'embedded'],
+      'Mobile': ['android', 'ios', 'mobile', 'app', 'smartphone', 'tablet']
     };
 
     Object.entries(tagKeywords).forEach(([tag, keywords]) => {
@@ -331,20 +356,72 @@ class ThreatIntelligencePipeline {
     return { ...this.processingStatus };
   }
 
-  // Get pipeline statistics
-  getStats(): ThreatIntelligenceStats {
-    const storageStats = dataStorage.getStats();
-    const reports = dataStorage.getReports();
-    const aiSummariesCount = reports.filter(r => r.aiSummary !== null).length;
+  /**
+   * Get statistics about the current threat intelligence state
+   * Enhanced to provide more detailed source information
+   */
+  getThreatIntelligenceStats(): ThreatIntelligenceStats {
+    console.log('Getting threat intelligence stats...');
+    try {
+      const storageStats = dataStorage.getStats();
+      console.log('Retrieved storage stats', storageStats);
+      
+      const reports = dataStorage.getReports();
+      console.log(`Retrieved ${reports.length} reports`);
+      
+      const allIOCs = dataStorage.getIOCs();
+      console.log(`Retrieved ${allIOCs.length} IOCs`);
+      
+      const aiSummariesCount = reports.filter(r => r.aiSummary !== null).length;
+      console.log(`Found ${aiSummariesCount} AI summaries`);
 
-    return {
-      totalReports: storageStats.totalReports,
-      totalIOCs: storageStats.totalIOCs,
-      activeSources: THREAT_FEEDS.filter(f => f.active).length,
-      lastRefresh: storageStats.lastUpdate,
-      processingQueue: storageStats.processingQueue,
-      aiSummariesGenerated: aiSummariesCount
-    };
+      // Get stats by source type
+      const sourceCounts = reports.reduce((acc, report) => {
+        const source = report.source || 'Unknown';
+        acc[source] = (acc[source] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+    
+      // Count reports by source type (API vs RSS/Atom)
+      const apiSources = ['github', 'nvd', 'alienvault', 'phishtank', 'reddit'];
+      const apiReports = reports.filter(r => {
+        const sourceFeed = THREAT_FEEDS.find(feed => feed.name === r.source);
+        return sourceFeed && apiSources.includes(sourceFeed.type);
+      }).length;
+      
+      const rssFeedReports = reports.length - apiReports;
+      
+      // Get the last refresh date from the most recent report, or use current date
+      const lastRefreshDate = reports.length > 0 
+        ? new Date(Math.max(...reports.map(r => new Date(r.timestamp).getTime())))
+        : new Date();
+        
+      return {
+        totalReports: reports.length,
+        totalIOCs: allIOCs.length,
+        activeSources: THREAT_FEEDS.filter(feed => feed.active).length,
+        lastRefresh: lastRefreshDate.toISOString(),
+        processingQueue: this.isProcessing ? 1 : 0,
+        aiSummariesGenerated: aiSummariesCount,
+        reportsBySource: sourceCounts,
+        apiSourceReports: apiReports,
+        rssFeedReports: rssFeedReports
+      };
+    } catch (error) {
+      console.error('Error getting threat intelligence stats:', error);
+      // Return default stats if there's an error
+      return {
+        totalReports: 0,
+        totalIOCs: 0,
+        activeSources: 0,
+        lastRefresh: new Date().toISOString(),
+        processingQueue: 0,
+        aiSummariesGenerated: 0,
+        reportsBySource: {},
+        apiSourceReports: 0,
+        rssFeedReports: 0
+      };
+    }
   }
 
   // Search functionality

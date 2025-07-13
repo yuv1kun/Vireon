@@ -36,9 +36,7 @@ export function ThreatFeed() {
 
   useEffect(() => {
     // Load existing reports on mount
-    const reports = threatIntelPipeline.getAllReports();
-    const initialReports = reports.slice(0, 10);
-    setThreatData(initialReports); // Show latest 10
+    loadLatestReports();
     setLastUpdate(new Date().toLocaleTimeString());
     
     // Initialize alert system with existing reports (but don't alert for them initially)
@@ -60,27 +58,48 @@ export function ThreatFeed() {
   useEffect(() => {
     if (!autoRefresh) return;
     
+    // Initial load to ensure we have the latest data
+    handleRefresh();
+    
     const interval = setInterval(() => {
       handleRefresh();
-    }, 5 * 60 * 1000); // Refresh every 5 minutes
+    }, 3 * 60 * 1000); // Refresh every 3 minutes for more frequent updates
     
     return () => clearInterval(interval);
   }, [autoRefresh]);
+
+  // Load the most recent reports, properly sorted by timestamp
+  const loadLatestReports = () => {
+    try {
+      const reports = threatIntelPipeline.getAllReports();
+      // Sort reports by timestamp (newest first)
+      const sortedReports = [...reports].sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+      const latestReports = sortedReports.slice(0, 10); // Show latest 10
+      setThreatData(latestReports);
+      console.log('Loaded latest threat reports:', latestReports.length);
+    } catch (error) {
+      console.error('Error loading latest reports:', error);
+    }
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
       console.log('Starting threat intelligence refresh...');
-      const result = await threatIntelPipeline.refreshThreatIntelligence({ maxItems: 10 });
+      const result = await threatIntelPipeline.refreshThreatIntelligence({ 
+        forceFeedRefresh: true,  // Force refresh to get latest data
+        maxItems: 20 // Get more items for better coverage
+      });
       console.log('Refresh result:', result);
       
-      const reports = threatIntelPipeline.getAllReports();
-      const newReports = reports.slice(0, 10);
-      setThreatData(newReports);
+      loadLatestReports();
       setLastUpdate(new Date().toLocaleTimeString());
       
       // Check for new threats and trigger alerts
-      checkForNewThreats(newReports);
+      checkForNewThreats(threatData);
+      console.log('Checked for new threats using current threat data');
     } catch (error) {
       console.error('Refresh failed:', error);
     }
@@ -100,10 +119,20 @@ export function ThreatFeed() {
   const regenerateSummary = async (report: ThreatReport, model?: string) => {
     setRegenerating(report.id);
     try {
+      // Add formatting instructions to ensure structured output
+      const formattedDescription = report.description + 
+        `\n\nFORMATTING INSTRUCTIONS:\n` +
+        `- Format your response using bullet points for better readability\n` + 
+        `- Use section headers (e.g., ### Overview, ### Technical Details, ### Impact Assessment)\n` + 
+        `- Include whitespace between sections for clarity\n` + 
+        `- Keep each bullet point concise and actionable\n` + 
+        `- Organize information logically with most critical information first\n` +
+        `- Use markdown formatting for enhanced readability\n`;
+        
       const iocsArray = report.iocs ? [report.iocs] : [];
       const newSummary = await aiAnalyzer.generateThreatSummary(
         report.title,
-        report.description,
+        formattedDescription,
         iocsArray,
         model
       );

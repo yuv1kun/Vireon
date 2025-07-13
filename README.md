@@ -33,6 +33,7 @@ A modern, AI-powered threat intelligence platform designed for cybersecurity pro
       <ul>
         <li>Integration with Ollama LLMs (LLaMA 2, Mistral, Code Llama)</li>
         <li>Automated threat summaries and analysis</li>
+        <li>Error-resilient incident response playbook generation</li>
         <li>Intelligent severity scoring and risk assessment</li>
         <li>Pattern recognition for attribution and threat actors</li>
       </ul>
@@ -188,9 +189,13 @@ vireon/
 #### 3. AI Analysis
 
 - Integration with Ollama for local LLM processing
-- Hugging Face models as fallback options
+- Robust hybrid AI approach with multi-tiered fallback system:
+  - Primary: Ollama LLM with extended timeout handling (120s)
+  - Secondary: Local Hugging Face models for streamlined analysis
+  - Tertiary: Template-based fallback for guaranteed output
 - Summarization and key point extraction
 - Threat severity assessment and categorization
+- Automated incident response playbook generation
 
 #### 4. Storage & Indexing
 

@@ -69,6 +69,26 @@ class AIThreatAnalyzer {
   ): Promise<ThreatSummary> {
     const startTime = Date.now();
 
+    // If formatting instructions are not already included, add them
+    if (!content.includes('FORMATTING INSTRUCTIONS:')) {
+      content += `
+
+FORMATTING INSTRUCTIONS:
+` +
+        `- Format your response using bullet points for better readability
+` + 
+        `- Use section headers (e.g., ### Overview, ### Technical Details, ### Impact Assessment)
+` + 
+        `- Include whitespace between sections for clarity
+` + 
+        `- Keep each bullet point concise and actionable
+` + 
+        `- Organize information logically with most critical information first
+` +
+        `- Use markdown formatting for enhanced readability
+`;
+    }
+
     // Try Ollama first if a preferred model is specified or if available
     if (preferredModel?.startsWith('ollama/') || ollamaService.isAvailable()) {
       const ollamaModel = preferredModel?.replace('ollama/', '') || ollamaService.getConfig().defaultModel;

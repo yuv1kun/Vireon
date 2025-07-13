@@ -3,6 +3,9 @@ import { Navigation } from '@/components/Navigation';
 import { Dashboard } from '@/components/Dashboard';
 import { ThreatFeed } from '@/components/ThreatFeed';
 import { IOCManager } from '@/components/IOCManager';
+import { ResponsePlaybookGenerator } from '@/components/ResponsePlaybookGenerator';
+import { AttackGraphVisualizer } from '@/components/AttackGraphVisualizer';
+import { ThreatCampaignDetector } from '@/components/ThreatCampaignDetector';
 import { SourceManagement } from '@/components/SourceManagement';
 import { SearchPage } from '@/components/SearchPage';
 import { LLMSettings } from '@/components/LLMSettings';
@@ -20,6 +23,48 @@ const Index = () => {
         return <ThreatFeed />;
       case 'iocs':
         return <IOCManager />;
+      case 'playbook':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-display font-semibold glow-text mb-2">
+                Response Playbook Generator
+              </h2>
+              <p className="text-muted-foreground">
+                Generate detailed incident response playbooks with AI-powered analysis.
+              </p>
+            </div>
+            <ResponsePlaybookGenerator />
+          </div>
+        );
+      case 'attack-graph':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-display font-semibold glow-text mb-2">
+                Attack Graph Visualization
+              </h2>
+              <p className="text-muted-foreground">
+                Visualize attack paths and infrastructure relationships in threat campaigns.
+              </p>
+            </div>
+            <AttackGraphVisualizer />
+          </div>
+        );
+      case 'campaign':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-display font-semibold glow-text mb-2">
+                Threat Campaign Detection
+              </h2>
+              <p className="text-muted-foreground">
+                Identify and track related threat activities across multiple incidents.
+              </p>
+            </div>
+            <ThreatCampaignDetector />
+          </div>
+        );
       case 'sources':
         return <SourceManagement />;
       case 'search':
